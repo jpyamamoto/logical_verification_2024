@@ -56,15 +56,19 @@ specification of GCL above. -/
 
 inductive BigStep : (Stmt × State) → State → Prop
   -- enter the missing `assign` rule here
+  | assign (x e s) : BigStep (Stmt.assign x e, s) (s[x ↦ e s])
   | assert (B s) (hB : B s) :
     BigStep (Stmt.assert B, s) s
   -- enter the missing `seq` rule here
+  | seq (S T s t u) (hS : BigStep (S, s) t) (hT : BigStep (T, t) u) : BigStep (S; T, s) u
   -- below, `Ss[i]'hless` returns element `i` of `Ss`, which exists thanks to
   -- condition `hless`
   | choice (Ss s t i) (hless : i < List.length Ss)
       (hbody : BigStep (Ss[i]'hless, s) t) :
     BigStep (Stmt.choice Ss, s) t
   -- enter the missing `loop` rules here
+  | loop_base (S s) : BigStep (Stmt.loop S, s) s
+  | loop_step (S s t u) (lfirst : BigStep (S, s) t) (lrest : BigStep (Stmt.loop S, t) u) : BigStep (Stmt.loop S, s) u
 
 infixl:110 " ⟹ " => BigStep
 
@@ -73,27 +77,85 @@ WHILE language. -/
 
 @[simp] theorem BigStep_assign_iff {x a s t} :
   (Stmt.assign x a, s) ⟹ t ↔ t = s[x ↦ a s] :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      rfl }
+    {
+      intro h
+      rw [h]
+      apply BigStep.assign }
 
 @[simp] theorem BigStep_assert {B s t} :
   (Stmt.assert B, s) ⟹ t ↔ t = s ∧ B s :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      apply And.intro
+      repeat' trivial }
+    { intro h
+      cases h
+      rw [left]
+      apply BigStep.assert
+      exact right }
 
 @[simp] theorem BigStep_seq_iff {S₁ S₂ s t} :
   (Stmt.seq S₁ S₂, s) ⟹ t ↔ (∃u, (S₁, s) ⟹ u ∧ (S₂, u) ⟹ t) :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      apply Exists.intro
+      apply And.intro
+      . exact hS
+      . exact hT }
+    { intro h
+      cases h
+      cases h_1
+      apply BigStep.seq S₁ S₂ s w t
+      . exact left
+      . exact right }
 
 theorem BigStep_loop {S s u} :
   (Stmt.loop S, s) ⟹ u ↔
   (s = u ∨ (∃t, (S, s) ⟹ t ∧ (Stmt.loop S, t) ⟹ u)) :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      . apply Or.inl
+        rfl
+      . apply Or.inr
+        apply Exists.intro t
+        apply And.intro
+        repeat' assumption }
+    { intro h
+      cases h
+      . rw [h_1]
+        apply BigStep.loop_base
+      . cases h_1
+        cases h
+        apply BigStep.loop_step S s w
+        repeat' assumption }
 
 /- This one is more difficult: -/
 
 @[simp] theorem BigStep_choice {Ss s t} :
   (Stmt.choice Ss, s) ⟹ t ↔
   (∃(i : ℕ) (hless : i < List.length Ss), (Ss[i]'hless, s) ⟹ t) :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      apply Exists.intro i
+      apply Exists.intro hless
+      exact hbody }
+    { intro h
+      cases h
+      cases h_1
+      apply BigStep.choice Ss s t w w_1 h }
 
 end GCL
 
@@ -104,13 +166,16 @@ def gcl_of : Stmt → GCL.Stmt
   | Stmt.skip =>
     GCL.Stmt.assert (fun _ ↦ True)
   | Stmt.assign x a =>
-    sorry
+    GCL.Stmt.assign x a
   | S; T =>
-    sorry
+    GCL.Stmt.seq (gcl_of S) (gcl_of T)
   | Stmt.ifThenElse B S T  =>
-    sorry
+    GCL.Stmt.choice [
+      GCL.Stmt.assert B; gcl_of S,
+      GCL.Stmt.assert (fun s ↦ ¬ (B s)); gcl_of T
+    ]
   | Stmt.whileDo B S =>
-    sorry
+    GCL.Stmt.loop (GCL.Stmt.assert B; gcl_of S); GCL.Stmt.assert (fun s ↦ ¬ (B s))
 
 /- 1.4. In the definition of `gcl_of` above, `skip` is translated to
 `assert (fun _ ↦ True)`. Looking at the big-step semantics of both constructs,
@@ -155,19 +220,66 @@ theorem BigStepEquiv.trans {S₁ S₂ S₃} (h₁₂ : S₁ ~ S₂) (h₂₃ : S
 
 theorem BigStepEquiv.skip_assign_id {x} :
   Stmt.assign x (fun s ↦ s x) ~ Stmt.skip :=
-  sorry
+  by
+    intro s t
+    apply Iff.intro
+    { intro h
+      cases h
+      simp }
+    { intro h
+      cases h
+      simp }
 
 theorem BigStepEquiv.seq_skip_left {S} :
   Stmt.skip; S ~ S :=
-  sorry
+  by
+    intro s t
+    apply Iff.intro
+    { intro h
+      cases h
+      cases hS
+      assumption }
+    { intro h
+      apply BigStep.seq _ S s s
+      . apply BigStep.skip
+      . apply h }
 
 theorem BigStepEquiv.seq_skip_right {S} :
   S; Stmt.skip ~ S :=
-  sorry
+  by
+    intro s t
+    apply Iff.intro
+    { intro h
+      cases h
+      cases hT
+      assumption }
+    { intro h
+      apply BigStep.seq S _
+      apply h
+      apply BigStep.skip }
 
 theorem BigStepEquiv.if_seq_while_skip {B S} :
   Stmt.ifThenElse B (S; Stmt.whileDo B S) Stmt.skip ~ Stmt.whileDo B S :=
-  sorry
+  by
+    intro s t
+    apply Iff.intro
+    { intro h
+      cases h
+      . cases hbody
+        apply BigStep.while_true B _ s t_1
+        repeat' assumption
+      . cases hbody
+        apply BigStep.while_false
+        assumption }
+    { intro h
+      cases h
+      . apply BigStep.if_true
+        . assumption
+        . apply BigStep.seq S _ s t_1
+          repeat' assumption
+      . apply BigStep.if_false
+        . assumption
+        . apply BigStep.skip }
 
 /- 2.2 (**optional**). Program equivalence can be used to replace subprograms
 by other subprograms with the same semantics. Prove the following so-called
@@ -176,10 +288,52 @@ congruence rules that facilitate such replacement: -/
 theorem BigStepEquiv.seq_congr {S₁ S₂ T₁ T₂} (hS : S₁ ~ S₂)
     (hT : T₁ ~ T₂) :
   S₁; T₁ ~ S₂; T₂ :=
-  sorry
+  by
+    intro s t
+    apply Iff.intro
+    { intro h
+      cases h
+      apply BigStep.seq S₂ T₂ s t_1 t
+      . rw [BigStepEquiv] at hS
+        rw [← hS]
+        exact hS_1
+      . rw [BigStepEquiv] at hT
+        rw [← hT]
+        exact hT_1 }
+    { intro h
+      cases h
+      apply BigStep.seq S₁ T₁ s t_1 t
+      . rw [BigStepEquiv] at hS
+        rw [hS]
+        exact hS_1
+      . rw [BigStepEquiv] at hT
+        rw [hT]
+        exact hT_1 }
 
 theorem BigStepEquiv.if_congr {B S₁ S₂ T₁ T₂} (hS : S₁ ~ S₂) (hT : T₁ ~ T₂) :
   Stmt.ifThenElse B S₁ T₁ ~ Stmt.ifThenElse B S₂ T₂ :=
-  sorry
+  by
+    intro s t
+    apply Iff.intro
+    { intro h
+      cases h
+      . apply BigStep.if_true B S₂ T₂ s t hcond
+        rw [BigStepEquiv] at hS
+        rw [← hS]
+        exact hbody
+      . apply BigStep.if_false B S₂ T₂ s t hcond
+        rw [BigStepEquiv] at hT
+        rw [← hT]
+        exact hbody }
+    { intro h
+      cases h
+      . apply BigStep.if_true B S₁ T₁ s t hcond
+        rw [BigStepEquiv] at hS
+        rw [hS]
+        exact hbody
+      . apply BigStep.if_false B S₁ T₁ s t hcond
+        rw [BigStepEquiv] at hT
+        rw [hT]
+        exact hbody }
 
 end LoVe

@@ -46,7 +46,18 @@ capture the fact that the variable `n` does not change. -/
 
 theorem FACT_correct (n₀ : ℕ) :
   {* fun s ↦ s "n" = n₀ *} (FACT) {* fun s ↦ s "r" = fact n₀ *} :=
-  sorry
+  show {* fun s ↦ s "n" = n₀ *}
+    (Stmt.assign "i" (fun s ↦ 0);
+     Stmt.assign "r" (fun s ↦ 1);
+      Stmt.invWhileDo (fun s ↦ s "r" = fact (s "i") ∧ s "n" = n₀)
+       (fun s ↦ s "i" ≠ s "n")
+       (Stmt.assign "i" (fun s ↦ s "i" + 1);
+        Stmt.assign "r" (fun s ↦ s "r" * s "i")))
+         {* fun s ↦ s "r" = fact n₀ *}
+  from
+    by
+      vcg <;> aesop
+      simp [Nat.mul_comm]
 
 
 /- ## Question 2 (5 points + 1 bonus point):
@@ -74,33 +85,54 @@ namespace PartialHoare
 
 theorem consequence {P P' Q Q' S} (h : {* P *} (S) {* Q *})
     (hp : ∀s, P' s → P s) (hq : ∀s, Q s → Q' s) :
-  {* P' *} (S) {* Q' *} :=
-  sorry
+  {* P' *} (S) {* Q' *} := by
+  intro s t hps hst
+  apply hq t
+  apply h s t (hp s hps)
+  exact hst
 
 theorem assign_intro {P x a} :
-  {* fun s ↦ P (s[x ↦ a s]) *} (Stmt.assign x a) {* P *} :=
-  sorry
+  {* fun s ↦ P (s[x ↦ a s]) *} (Stmt.assign x a) {* P *} := by
+  intro s t hp ha
+  cases ha
+  exact hp
 
 theorem assert_intro {P Q : State → Prop} :
-  {* fun s ↦ Q s → P s *} (Stmt.assert Q) {* P *} :=
-  sorry
+  {* fun s ↦ Q s → P s *} (Stmt.assert Q) {* P *} := by
+  intro s t h ha
+  cases ha
+  exact h hB
 
 theorem seq_intro {P Q R S T}
   (hS : {* P *} (S) {* Q *}) (hT : {* Q *} (T) {* R *}) :
-  {* P *} (Stmt.seq S T) {* R *} :=
-  sorry
+  {* P *} (Stmt.seq S T) {* R *} := by
+  intro s t hps hseq
+  cases hseq
+  apply hT t_1 t
+  . exact hS s t_1 hps hS_1
+  . exact hT_1
 
 theorem choice_intro {P Q Ss}
     (h : ∀i (hi : i < List.length Ss), {* P *} (Ss[i]'hi) {* Q *}) :
-  {* P *} (Stmt.choice Ss) {* Q *} :=
-  sorry
+  {* P *} (Stmt.choice Ss) {* Q *} := by
+  intro s t hp hsc
+  aesop
 
 /- 2.2 (1 bonus point). Prove the rule for `loop`. Notice the similarity with
 the rule for `while` in the WHILE language. -/
 
 theorem loop_intro {P S} (h : {* P *} (S) {* P *}) :
-  {* P *} (Stmt.loop S) {* P *} :=
-  sorry
+  {* P *} (Stmt.loop S) {* P *} := by
+  intro s t hp hl
+  generalize ws_eq : (Stmt.loop S, s) = Ss
+  rw [ws_eq] at hl
+  induction hl generalizing s with
+  | assign n s' => aesop
+  | assert s' => aesop
+  | seq s₁ s₂ => aesop
+  | choice ss => aesop
+  | loop_base S' s' => aesop
+  | loop_step S' s' => aesop
 
 end PartialHoare
 

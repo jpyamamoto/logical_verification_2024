@@ -36,31 +36,45 @@ has that length. -/
 theorem List.length_add :
   ∀xs ys, List.length xs = List.length ys →
     List.length (List.add xs ys) = List.length xs
-  | [], [] =>
-    sorry
-  | x :: xs, y :: ys =>
-    sorry
-  | [], y :: ys =>
-    sorry
-  | x :: xs, [] =>
-    sorry
+  | [], [] => fun _ ↦ rfl
+  | x :: xs, y :: ys => by
+    simp [add, List.length]
+    intro h
+    apply List.length_add xs ys h
+  | [], y :: ys => by
+    simp [add]
+  | x :: xs, [] => by
+    simp [add]
 
 /- 1.2. Define componentwise addition on vectors using `List.add` and
 `List.length_add`. -/
 
-def Vector.add {n : ℕ} : Vector ℤ n → Vector ℤ n → Vector ℤ n :=
-  sorry
+def Vector.add {n : ℕ} : Vector ℤ n → Vector ℤ n → Vector ℤ n
+  | u, v => Subtype.mk (List.add (Subtype.val u) (Subtype.val v)) (
+    by
+      rw [List.length_add]
+      . exact Subtype.property u
+      . rw [Subtype.property u, Subtype.property v]
+  )
 
 /- 1.3. Show that `List.add` and `Vector.add` are commutative. -/
 
 theorem List.add.comm :
-  ∀xs ys, List.add xs ys = List.add ys xs :=
-  sorry
+  ∀xs ys, List.add xs ys = List.add ys xs
+  | [], [] => rfl
+  | x :: xs, y :: ys => by
+    simp [add]
+    apply And.intro
+    . simp [Int.add_comm]
+    . exact List.add.comm xs ys
+  | x :: xs, [] => by simp [add]
+  | [], y :: ys => by simp [add]
 
 theorem Vector.add.comm {n : ℕ} (u v : Vector ℤ n) :
-  Vector.add u v = Vector.add v u :=
-  sorry
-
+  Vector.add u v = Vector.add v u := by
+  apply Subtype.eq
+  simp [Vector.add]
+  exact List.add.comm _ _
 
 /- ## Question 2: Integers as Quotients
 
@@ -75,16 +89,25 @@ Lean's predefined type `Int` (= `ℤ`): -/
 an integer, then `(n, p)` represents its negation. -/
 
 def Int.neg : Int → Int :=
-  sorry
+  Quotient.lift (fun pn : ℕ × ℕ ↦ ⟦(Prod.snd pn, Prod.fst pn)⟧) (
+  by
+    intro a b hr
+    cases a
+    cases b
+    apply Quotient.sound
+    simp [Int.Setoid_Iff] at *
+    linarith
+  )
 
 /- 2.2. Prove the following theorems about negation. -/
 
 theorem Int.neg_eq (p n : ℕ) :
-  Int.neg ⟦(p, n)⟧ = ⟦(n, p)⟧ :=
-  sorry
+  Int.neg ⟦(p, n)⟧ = ⟦(n, p)⟧ := by rfl
 
 theorem int.neg_neg (a : Int) :
-  Int.neg (Int.neg a) = a :=
-  sorry
+  Int.neg (Int.neg a) = a := by
+  induction a using Quotient.inductionOn
+  . cases a_1
+    simp [Int.neg]
 
 end LoVe

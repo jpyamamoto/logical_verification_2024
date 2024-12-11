@@ -67,17 +67,34 @@ Hints:
 * To reduce `f = g` to `∀x, f x = g x`, use the theorem `funext`. -/
 
 theorem pure_bind {α β : Type} (a : α) (f : α → Nondet β) :
-  pure a >>= f = f a :=
- sorry
+  pure a >>= f = f a := by
+ simp [Bind.bind, Pure.pure]
+ rfl
 
 theorem bind_pure {α : Type} :
-  ∀na : Nondet α, na >>= pure = na :=
-  sorry
+  ∀na : Nondet α, na >>= pure = na := by
+  intro na
+  simp [Bind.bind, Pure.pure]
+  induction na
+  . rfl
+  . rfl
+  . simp [bind]
+    apply funext
+    intro b
+    exact a_ih b
 
 theorem bind_assoc {α β γ : Type} :
   ∀(na : Nondet α) (f : α → Nondet β) (g : β → Nondet γ),
-    ((na >>= f) >>= g) = (na >>= (fun a ↦ f a >>= g)) :=
-  sorry
+    ((na >>= f) >>= g) = (na >>= (fun a ↦ f a >>= g)) := by
+  intro na f g
+  simp [Bind.bind, Pure.pure]
+  induction na
+  . rfl
+  . rfl
+  . simp [bind]
+    apply funext
+    intro b
+    exact a_ih b
 
 /- The function `portmanteau` computes a portmanteau of two lists: A
 portmanteau of `xs` and `ys` has `xs` as a prefix and `ys` as a suffix, and they
@@ -106,8 +123,15 @@ def portmanteau : List ℕ → List ℕ → List (List ℕ)
 /- 1.2 (1 bonus point). Translate the `portmanteau` program from the `List`
 monad to the `Nondet` monad. -/
 
-def nondetPortmanteau : List ℕ → List ℕ → Nondet (List ℕ) :=
-  sorry
+def nondetPortmanteau : List ℕ → List ℕ → Nondet (List ℕ)
+ | [],      _  => fail
+ | x :: xs, ys =>
+    choice (fun b ↦
+      if b then (do
+        let zs <- nondetPortmanteau xs ys
+        pure (List.cons x zs))
+      else
+        if startsWith (x :: xs) ys then pure ys else fail)
 
 
 /- ## Question 2 (5 points + 1 bonus point): Nondeterminism, Denotationally
@@ -116,8 +140,10 @@ def nondetPortmanteau : List ℕ → List ℕ → Nondet (List ℕ) :=
 `List` of all results. `pure` returns one result, `fail` returns zero, and
 `choice` combines the results of either option. -/
 
-def listSem {α : Type} : Nondet α → List α :=
-  sorry
+def listSem {α : Type} : Nondet α → List α
+  | just a => [a]
+  | fail   => []
+  | choice fb => listSem (fb true) ++ listSem (fb false)
 
 /- Check that the following lines give the same output as for `portmanteau` (if
 you have answered question 1.2): -/
@@ -130,8 +156,12 @@ you have answered question 1.2): -/
 the first successful one. Give a semantics for `Nondet` that produces the first
 successful result, if any. Your solution should *not* use `listSem`. -/
 
-noncomputable def optionSem {α : Type} : Nondet α → Option α :=
-  sorry
+noncomputable def optionSem {α : Type} : Nondet α → Option α
+  | just a => some a
+  | fail   => none
+  | choice fb => match optionSem (fb true) with
+    | Option.none => optionSem (fb false)
+    | Option.some a => some a
 
 /- 2.3 (1 bonus point). Prove the theorem `List_Option_compat` below, showing
 that the two semantics you defined are compatible.
@@ -140,9 +170,17 @@ that the two semantics you defined are compatible.
 `Option.none` for an empty list. It corresponds to the function we called
 `headOpt` in lecture 5. -/
 
-theorem List_Option_compat {α : Type} :
-  ∀na : Nondet α, optionSem na = List.head? (listSem na) :=
-  sorry
+theorem List_Option_compat' {α : Type} :
+  ∀na : Nondet α, optionSem na = List.head? (listSem na) := by
+  intro na
+  induction na
+  . rfl
+  . rfl
+  . simp [optionSem, listSem]
+    simp [a_ih true, a_ih false]
+    cases listSem (a true)
+    . rfl
+    . rfl
 
 end Nondet
 

@@ -22,7 +22,7 @@ namespace LoVe
 Recall the type of arithmetic expressions from lecture 1 and its evaluation
 function: -/
 
-#check AExp
+#print AExp
 #check eval
 
 /- Let us introduce the following abbreviation for an environment that maps
@@ -38,6 +38,11 @@ evaluates in the given environment: -/
 
 inductive BigStep : AExp × Envir → ℤ → Prop
   | num (i env) : BigStep (AExp.num i, env) i
+  | var (n env) : BigStep (AExp.var n, env) (env n)
+  | add (e₁ e₂ env) (n m) (lcond : BigStep (e₁, env) n) (rcond : BigStep (e₂, env) m) : BigStep (AExp.add e₁ e₂, env) (n + m)
+  | sub (e₁ e₂ env) (n m) (lcond : BigStep (e₁, env) n) (rcond : BigStep (e₂, env) m) : BigStep (AExp.sub e₁ e₂, env) (n - m)
+  | mul (e₁ e₂ env) (n m) (lcond : BigStep (e₁, env) n) (rcond : BigStep (e₂, env) m) : BigStep (AExp.mul e₁ e₂, env) (n * m)
+  | div (e₁ e₂ env) (n m) (lcond : BigStep (e₁, env) n) (rcond : BigStep (e₂, env) m) : BigStep (AExp.div e₁ e₂, env) (n / m)
 
 infix:60 " ⟹ " => BigStep
 
@@ -49,15 +54,27 @@ Hint: It may help to first prove
 
 theorem BigStep_add_two_two (env : Envir) :
   (AExp.add (AExp.num 2) (AExp.num 2), env) ⟹ 4 :=
-  sorry
+  by
+    have alt : (AExp.add (AExp.num 2) (AExp.num 2), env) ⟹ 2 + 2 := by
+      apply BigStep.add
+      repeat' apply BigStep.num
+    have num : 2 + 2 = (4 : ℤ) := by rfl
+    rw [←num]
+    exact alt
 
 /- 1.3 (2 points). Prove that the big-step semantics is sound with respect to
 the `eval` function: -/
 
 theorem BigStep_sound (aenv : AExp × Envir) (i : ℤ) (hstep : aenv ⟹ i) :
   eval (Prod.snd aenv) (Prod.fst aenv) = i :=
-  sorry
-
+  by
+    induction hstep
+    . rfl
+    . rfl
+    repeat' {
+      simp at *
+      rw [eval, lcond_ih, rcond_ih]
+    }
 
 /- ## Question 2 (5 points + 1 bonus point): Semantics of Regular Expressions
 
@@ -130,30 +147,95 @@ inductive Matches {α : Type} : Regex α → List α → Prop
 
 @[simp] theorem Matches_atom {α : Type} {s : List α} {a : α} :
   Matches (Regex.atom a) s ↔ s = [a] :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      rfl }
+    { intro h
+      rw [h]
+      apply Matches.atom }
 
 @[simp] theorem Matches_nothing {α : Type} {s : List α} :
   ¬ Matches Regex.nothing s :=
-  sorry
+  by
+    intro h
+    cases h
 
 @[simp] theorem Matches_empty {α : Type} {s : List α} :
   Matches Regex.empty s ↔ s = [] :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      rfl }
+    { intro h
+      rw [h]
+      apply Matches.empty }
 
 @[simp] theorem Matches_concat {α : Type} {s : List α} {r₁ r₂ : Regex α} :
   Matches (Regex.concat r₁ r₂) s
   ↔ (∃s₁ s₂, Matches r₁ s₁ ∧ Matches r₂ s₂ ∧ s = s₁ ++ s₂) :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      apply Exists.intro s₁
+      apply Exists.intro s₂
+      apply And.intro
+      . exact h₁
+      . apply And.intro
+        . exact h₂
+        . rfl }
+    { intro h
+      cases h
+      cases h_1
+      cases h
+      cases right
+      rw [right_1]
+      apply Matches.concat r₁ r₂ w w_1 left left_1 }
 
 @[simp] theorem Matches_alt {α : Type} {s : List α} {r₁ r₂ : Regex α} :
   Matches (Regex.alt r₁ r₂) s ↔ (Matches r₁ s ∨ Matches r₂ s) :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      . apply Or.inl
+        exact h_1
+      . apply Or.inr
+        exact h_1 }
+    { intro h
+      cases h
+      . apply Matches.alt_left r₁ r₂ s h_1
+      . apply Matches.alt_right r₁ r₂ s h_1 }
 
 /- 2.3 (1 bonus point). Prove the following inversion rule. -/
 
 theorem Matches_star {α : Type} {s : List α} {r : Regex α} :
   Matches (Regex.star r) s ↔
   (s = [] ∨ (∃s₁ s₂, Matches r s₁ ∧ Matches (Regex.star r) s₂ ∧ s = s₁ ++ s₂)) :=
-  sorry
+  by
+    apply Iff.intro
+    { intro h
+      cases h
+      . apply Or.inl
+        rfl
+      . apply Or.inr
+        apply Exists.intro s_1
+        apply Exists.intro s'
+        apply And.intro h₁
+        apply And.intro h₂
+        rfl }
+    { intro h
+      cases h
+      . rw [h_1]
+        apply Matches.star_base
+      . cases h_1
+        cases h
+        cases h_1
+        cases right
+        rw [right_1]
+        apply Matches.star_step r w w_1 left left_1 }
 
 end LoVe

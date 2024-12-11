@@ -35,12 +35,28 @@ def Tree.graft {α : Type} : Tree α → Tree α → Tree α
 /- 1.1. Prove the following two theorems by structural induction on `t`. -/
 
 theorem Tree.graft_assoc {α : Type} (t u v : Tree α) :
-  Tree.graft (Tree.graft t u) v = Tree.graft t (Tree.graft u v) :=
-  sorry
+  Tree.graft (Tree.graft t u) v = Tree.graft t (Tree.graft u v) := by
+  induction t
+  . simp [Tree.graft]
+  . simp [Tree.graft]
+    apply And.intro
+    { exact a_ih }
+    { exact a_ih_1 }
 
 theorem Tree.graft_nil {α : Type} (t : Tree α) :
-  Tree.graft t Tree.nil = t :=
-  sorry
+  Tree.graft t Tree.nil = t := by
+  induction t
+  . simp [graft]
+  . simp [graft]
+    apply And.intro
+    { exact a_ih }
+    { exact a_ih_1 }
+
+theorem Tree.nil_graft {α : Type} (t : Tree α) :
+  Tree.graft Tree.nil t = t := by
+  induction t
+  . simp [graft]
+  . simp [graft]
 
 /- 1.2. Declare `Tree` an instance of `AddMonoid` using `graft` as the
 addition operator. -/
@@ -48,16 +64,11 @@ addition operator. -/
 #print AddMonoid
 
 instance Tree.AddMonoid {α : Type} : AddMonoid (Tree α) :=
-  { add       :=
-      sorry
-    add_assoc :=
-      sorry
-    zero      :=
-      sorry
-    add_zero  :=
-      sorry
-    zero_add  :=
-      sorry
+  { add       := graft
+    add_assoc := Tree.graft_assoc
+    zero      := Tree.nil
+    add_zero  := Tree.graft_nil
+    zero_add  := Tree.nil_graft
   }
 
 /- 1.3 (**optional**). Explain why `Tree` with `graft` as addition cannot be
@@ -71,8 +82,12 @@ declared an instance of `AddGroup`. -/
 with `graft` as addition does not constitute an `AddGroup`. -/
 
 theorem Tree.add_left_neg_counterexample :
-  ∃x : Tree ℕ, ∀y : Tree ℕ, Tree.graft y x ≠ Tree.nil :=
-  sorry
+  ∃x : Tree ℕ, ∀y : Tree ℕ, Tree.graft y x ≠ Tree.nil := by
+  apply Exists.intro (Tree.node 0 Tree.nil Tree.nil)
+  intro t
+  cases t
+  . simp [graft]
+  . simp [graft]
 
 
 /- ## Question 2: Multisets and Finsets
@@ -86,8 +101,12 @@ Recall the following definitions from the lecture: -/
 tree. -/
 
 theorem Finset.elems_mirror (t : Tree ℕ) :
-  Finset.elems (mirror t) = Finset.elems t :=
-  sorry
+  Finset.elems (mirror t) = Finset.elems t := by
+  induction t
+  . simp [elems]
+  . simp [elems]
+    rw [a_ih, a_ih_1]
+    ac_rfl
 
 /- 2.2. Show that this does not hold for the list of nodes by providing a
 tree `t` for which `List.elems t ≠ List.elems (mirror t)`.
@@ -95,7 +114,7 @@ tree `t` for which `List.elems t ≠ List.elems (mirror t)`.
 If you define a suitable counterexample, the proof below will succeed. -/
 
 def rottenTree : Tree ℕ :=
-  sorry
+  Tree.node 0 (Tree.node 1 Tree.nil Tree.nil) (Tree.node 2 Tree.nil Tree.nil)
 
 #eval List.elems rottenTree
 #eval List.elems (mirror rottenTree)

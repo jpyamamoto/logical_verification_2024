@@ -34,7 +34,13 @@ record this in the invariant, by adding a conjunct `s "x" = x₀`. -/
 
 theorem COUNT_UP_correct (a₀ : ℕ) :
   {* fun s ↦ s "a" = a₀ *} (COUNT_UP) {* fun s ↦ s "a" = a₀ ∧ s "b" = a₀ *} :=
-  sorry
+  show {* fun s ↦ s "a" = a₀ *}
+     (Stmt.invWhileDo (fun s ↦ s "a" = a₀)
+        (fun s ↦ s "b" ≠ s "a")
+        (Stmt.assign "b" (fun s ↦ s "b" + 1)))
+     {* fun s ↦ s "a" = a₀ ∧ s "b" = a₀ *} from
+     by
+      vcg <;> aesop
 
 /- 1.2. What happens if the program is run with `b > a`? How is this captured
 by the Hoare triple? -/
@@ -62,7 +68,18 @@ emerging verification conditions. -/
 
 theorem GAUSS_correct (N : ℕ) :
   {* fun s ↦ True *} (GAUSS N) {* fun s ↦ s "r" = sumUpTo N *} :=
-  sorry
+  show {* fun s ↦ True *}
+   (Stmt.assign "r" (fun s ↦ 0);
+    Stmt.assign "n" (fun s ↦ 0);
+    Stmt.invWhileDo (fun s ↦ s "r" = sumUpTo (s "n"))
+    (fun s ↦ s "n" ≠ N)
+      (Stmt.assign "n" (fun s ↦ s "n" + 1);
+       Stmt.assign "r" (fun s ↦ s "r" + s "n")))
+      {* fun s ↦ s "r" = sumUpTo N *} from
+  by
+    vcg <;> aesop
+    simp [sumUpTo]
+    linarith
 
 /- 1.4 (**optional**). The following program `MUL` is intended to compute the
 product of `n` and `m`, leaving the result in `r`. Invoke `vcg` on `MUL` using a
@@ -76,7 +93,26 @@ def MUL : Stmt :=
 
 theorem MUL_correct (n₀ m₀ : ℕ) :
   {* fun s ↦ s "n" = n₀ ∧ s "m" = m₀ *} (MUL) {* fun s ↦ s "r" = n₀ * m₀ *} :=
-  sorry
+  show {* fun s ↦ s "n" = n₀ ∧ s "m" = m₀ *}
+   (Stmt.assign "r" (fun s ↦ 0);
+    Stmt.invWhileDo (fun s ↦ s "m" = m₀ ∧ s "n" * s "m" + s "r" = n₀ * s "m" )
+    (fun s ↦ s "n" ≠ 0)
+    (Stmt.assign "r" (fun s ↦ s "r" + s "m");
+     Stmt.assign "n" (fun s ↦ s "n" - 1)))
+      {* fun s ↦ s "r" = n₀ * m₀ *} from
+  by
+    vcg <;> aesop
+    have aux (m n r : ℕ) (hN : ¬ n = 0) : (n - 1) * m + (r + m) = n * m + r := by
+      cases n
+      . exfalso
+        apply hN
+        rfl
+      . simp
+        simp [Nat.succ_eq_add_one, add_mul, add_assoc]
+        simp [add_comm]
+    rw [aux (s "m") (s "n") (s "r")]
+    linarith
+    exact right
 
 
 /- ## Question 2: Hoare Triples for Total Correctness
@@ -96,27 +132,49 @@ namespace TotalHoare
 
 theorem consequence {P P' Q Q' S}
     (hS : [* P *] (S) [* Q *]) (hP : ∀s, P' s → P s) (hQ : ∀s, Q s → Q' s) :
-  [* P' *] (S) [* Q' *] :=
-  sorry
+  [* P' *] (S) [* Q' *] := by
+  intro s h
+  cases hS s (hP s h)
+  apply Exists.intro w
+  cases h_1
+  apply And.intro
+  . exact left
+  . apply hQ w right
 
 /- 2.2. Prove the rule for `skip`. -/
 
 theorem skip_intro {P} :
-  [* P *] (Stmt.skip) [* P *] :=
-  sorry
+  [* P *] (Stmt.skip) [* P *] := by
+  intro s h
+  apply Exists.intro s
+  apply And.intro
+  . apply BigStep.skip
+  . exact h
 
 /- 2.3. Prove the rule for `assign`. -/
 
 theorem assign_intro {P x a} :
-  [* fun s ↦ P (s[x ↦ a s]) *] (Stmt.assign x a) [* P *] :=
-  sorry
+  [* fun s ↦ P (s[x ↦ a s]) *] (Stmt.assign x a) [* P *] := by
+  intro s h
+  apply Exists.intro (State.update x (a s) s)
+  apply And.intro
+  . apply BigStep.assign x
+  . exact h
 
 /- 2.4. Prove the rule for `seq`. -/
 
 theorem seq_intro {P Q R S T} (hS : [* P *] (S) [* Q *])
   (hT : [* Q *] (T) [* R *]) :
-  [* P *] (S; T) [* R *] :=
-  sorry
+  [* P *] (S; T) [* R *] := by
+  intro s h
+  cases hS s h
+  cases h_1
+  cases hT w right
+  cases h_1
+  apply Exists.intro w_1
+  apply And.intro
+  . apply BigStep.seq S T s w w_1 left left_1
+  . exact right_1
 
 /- 2.5. Complete the proof of the rule for `if`–`then`–`else`.
 
@@ -125,8 +183,25 @@ Hint: The proof requires a case distinction on the truth value of `B s`. -/
 theorem if_intro {B P Q S T}
     (hS : [* fun s ↦ P s ∧ B s *] (S) [* Q *])
     (hT : [* fun s ↦ P s ∧ ¬ B s *] (T) [* Q *]) :
-  [* P *] (Stmt.ifThenElse B S T) [* Q *] :=
-  sorry
+  [* P *] (Stmt.ifThenElse B S T) [* Q *] := by
+  intro s h
+  cases Classical.em (B s)
+  {
+    cases hS s (And.intro h h_1)
+    cases h_2
+    apply Exists.intro w
+    apply And.intro
+    . apply BigStep.if_true B S T _ _ h_1 left
+    . exact right
+  }
+  {
+    cases hT s (And.intro h h_1)
+    cases h_2
+    apply Exists.intro w
+    apply And.intro
+    . apply BigStep.if_false B S T _ _ h_1 left
+    . exact right
+  }
 
 /- 2.6 (**optional**). Try to prove the rule for `while`.
 
@@ -151,13 +226,40 @@ theorem var_while_intro_aux {B} (I : State → Prop) (V : State → ℕ) {S}
      [* fun s ↦ I s ∧ B s ∧ V s = v₀ *] (S) [* fun s ↦ I s ∧ V s < v₀ *]) :
   ∀v₀ s, V s = v₀ → I s → ∃t, (Stmt.whileDo B S, s) ⟹ t ∧ I t ∧ ¬ B t
   | v₀, s, V_eq, hs =>
-    sorry
+    by
+      cases Classical.em (B s)
+      {
+        cases (h_inv v₀) s (And.intro hs (And.intro h V_eq))
+        cases h_1
+        have ih : ∃u, (Stmt.whileDo B S, w) ⟹ u ∧ I u ∧ ¬ B u :=
+          have _ : V w < v₀ := by
+            simp at right
+            cases right
+            exact right_1
+          var_while_intro_aux I V h_inv (V w) w rfl (by simp at right; apply And.left right)
+        cases ih
+        apply Exists.intro w_1
+        apply And.intro
+        . cases h_1
+          exact BigStep.while_true B S s w w_1 h left left_1
+        . cases h_1
+          exact right_1
+      }
+      {
+        apply Exists.intro s
+        apply And.intro
+        . apply BigStep.while_false B S s
+          exact h
+        . exact And.intro hs h
+      }
 
 theorem var_while_intro {B} (I : State → Prop) (V : State → ℕ) {S}
   (hinv : ∀v₀,
      [* fun s ↦ I s ∧ B s ∧ V s = v₀ *] (S) [* fun s ↦ I s ∧ V s < v₀ *]) :
-  [* I *] (Stmt.whileDo B S) [* fun s ↦ I s ∧ ¬ B s *] :=
-  sorry
+  [* I *] (Stmt.whileDo B S) [* fun s ↦ I s ∧ ¬ B s *] := by
+  intro s t
+  simp
+  exact var_while_intro_aux I V hinv (V s) s rfl t
 
 end TotalHoare
 

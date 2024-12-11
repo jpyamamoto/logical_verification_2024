@@ -32,14 +32,21 @@ hypothesis is not strong enough. Start by proving the following generalization
 (using the `induction` tactic or pattern matching): -/
 
 theorem reverseAccu_Eq_reverse_append {α : Type} :
-  ∀as xs : List α, reverseAccu as xs = reverse xs ++ as :=
-  sorry
+  ∀as xs : List α, reverseAccu as xs = reverse xs ++ as := by
+  intro as xs
+  induction xs generalizing as with
+  | nil => rfl
+  | cons x xs => simp [reverse, reverseAccu, tail_ih]
 
 /- 1.2. Derive the desired equation. -/
 
 theorem reverseAccu_eq_reverse {α : Type} (xs : List α) :
-  reverseAccu [] xs = reverse xs :=
-  sorry
+  reverseAccu [] xs = reverse xs := by
+  induction xs with
+  | nil => rfl
+  | cons x xs => 
+    rw [reverseAccu_Eq_reverse_append]
+    simp [append]
 
 /- 1.3. Prove the following property.
 
@@ -47,7 +54,7 @@ Hint: A one-line inductionless proof is possible. -/
 
 theorem reverseAccu_reverseAccu {α : Type} (xs : List α) :
   reverseAccu [] (reverseAccu [] xs) = xs :=
-  sorry
+  by simp [reverseAccu_eq_reverse, reverse_reverse]
 
 /- 1.4. Prove the following theorem by structural induction, as a "paper"
 proof. This is a good exercise to develop a deeper understanding of how
@@ -90,8 +97,10 @@ def drop {α : Type} : ℕ → List α → List α
 To avoid unpleasant surprises in the proofs, we recommend that you follow the
 same recursion pattern as for `drop` above. -/
 
-def take {α : Type} : ℕ → List α → List α :=
-  sorry
+def take {α : Type} : ℕ → List α → List α
+  | 0,    _xs => []
+  | _ + 1, [] => []
+  | m + 1, x :: xs => x :: take m xs
 
 #eval take 0 [3, 7, 11]   -- expected: []
 #eval take 1 [3, 7, 11]   -- expected: [3]
@@ -106,12 +115,18 @@ Notice that they are registered as simplification rules thanks to the `@[simp]`
 attribute. -/
 
 @[simp] theorem drop_nil {α : Type} :
-  ∀n : ℕ, drop n ([] : List α) = [] :=
-  sorry
+  ∀n : ℕ, drop n ([] : List α) = [] := by
+  intro n
+  cases n with
+  | zero => rfl
+  | succ _ => simp [drop]
 
 @[simp] theorem take_nil {α : Type} :
-  ∀n : ℕ, take n ([] : List α) = [] :=
-  sorry
+  ∀n : ℕ, take n ([] : List α) = [] := by
+  intro n
+  cases n with
+  | zero => rfl
+  | succ _ => simp [take]
 
 /- 2.3. Follow the recursion pattern of `drop` and `take` to prove the
 following theorems. In other words, for each theorem, there should be three
@@ -122,16 +137,25 @@ two arguments to `drop`). For the third case, `← add_assoc` might be useful. -
 
 theorem drop_drop {α : Type} :
   ∀(m n : ℕ) (xs : List α), drop n (drop m xs) = drop (n + m) xs
-  | 0,     n, xs      => by rfl
-  -- supply the two missing cases here
+  | 0,     _, xs      => by rfl
+  | _ + 1, _, []      => by simp [drop]
+  | m + 1, n, x :: xs      => by
+    simp [drop]
+    rw [drop_drop m n xs]
 
 theorem take_take {α : Type} :
-  ∀(m : ℕ) (xs : List α), take m (take m xs) = take m xs :=
-  sorry
+  ∀(m : ℕ) (xs : List α), take m (take m xs) = take m xs
+  | 0,     xs      => by rfl
+  | _ + 1, []      => by simp [take]
+  | m + 1, x :: xs      => by
+    simp [take]
+    rw [take_take m xs]
 
 theorem take_drop {α : Type} :
-  ∀(n : ℕ) (xs : List α), take n xs ++ drop n xs = xs :=
-  sorry
+  ∀(n : ℕ) (xs : List α), take n xs ++ drop n xs = xs
+  | 0,     _  => by rfl
+  | _ + 1, [] => by rfl
+  | n + 1, x :: xs => by simp [drop, take, take_drop n xs]
 
 
 /- ## Question 3: A Type of Terms
@@ -143,14 +167,19 @@ theorem take_drop {α : Type} :
             |  `lam` String Term   -- λ-expression (e.g., `λx. t`)
             |  `app` Term Term     -- application (e.g., `t u`) -/
 
--- enter your definition here
+inductive Term : Type where
+  | var : String -> Term
+  | lam : String -> Term -> Term
+  | app : Term -> Term -> Term
 
 /- 3.2 (**optional**). Register a textual representation of the type `term` as
 an instance of the `Repr` type class. Make sure to supply enough parentheses to
 guarantee that the output is unambiguous. -/
 
 def Term.repr : Term → String
--- enter your answer here
+  | var v => v
+  | lam v t => "(λ" ++ v ++ ". " ++ t.repr ++ ")"
+  | app t₁ t₂ => "(" ++ t₁.repr ++ " " ++ t₂.repr ++ ")"
 
 instance Term.Repr : Repr Term :=
   { reprPrec := fun t prec ↦ Term.repr t }

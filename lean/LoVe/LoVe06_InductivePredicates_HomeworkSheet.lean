@@ -29,22 +29,25 @@ inductive Term : Type
 /- 1.1 (2 points). Define an inductive predicate `IsLam` that returns `True` if
 its argument is of the form `Term.lam …` and that returns `False` otherwise. -/
 
--- enter your definition here
+inductive IsLam : Term → Prop where
+  | lam n t : IsLam (Term.lam n t)
 
 /- 1.2 (2 points). Validate your answer to question 1.1 by proving the following
 theorems: -/
 
 theorem IsLam_lam (s : String) (t : Term) :
   IsLam (Term.lam s t) :=
-  sorry
+  IsLam.lam s t
 
 theorem not_IsLamVar (s : String) :
-  ¬ IsLam (Term.var s) :=
-  sorry
+  ¬ IsLam (Term.var s) := by
+  intro h
+  cases h
 
 theorem not_IsLam_app (t u : Term) :
-  ¬ IsLam (Term.app t u) :=
-  sorry
+  ¬ IsLam (Term.app t u) := by
+  intro h
+  cases h
 
 
 /- ## Question 2 (6 points): Transitive Closure
@@ -70,7 +73,9 @@ would use replace `(step)` with the following right-leaning rule:
 
 Define a predicate `TCV2` that embodies this alternative definition. -/
 
--- enter your definition here
+inductive TCV2 {α : Type} (R : α → α → Prop) : α → α → Prop
+  | base (a b : α)   : R a b → TCV2 R a b
+  | step (a b c : α) : TCV2 R a b → R b c → TCV2 R a c
 
 /- 2.2 (2 points). Yet another definition of the transitive closure `R⁺` would
 use the following symmetric rule instead of `(step)` or `(pets)`:
@@ -79,19 +84,31 @@ use the following symmetric rule instead of `(step)` or `(pets)`:
 
 Define a predicate `TCV3` that embodies this alternative definition. -/
 
--- enter your definition here
+inductive TCV3 {α : Type} (R : α → α → Prop) : α → α → Prop
+  | base (a b : α)   : R a b → TCV3 R a b
+  | step (a b c : α) : TCV3 R a b → TCV3 R b c → TCV3 R a c
 
 /- 2.3 (1 point). Prove that `(step)` also holds as a theorem about `TCV3`. -/
 
 theorem TCV3_step {α : Type} (R : α → α → Prop) (a b c : α) (rab : R a b)
     (tbc : TCV3 R b c) :
   TCV3 R a c :=
-  sorry
+  TCV3.step a b c (TCV3.base a b rab) tbc
 
 /- 2.4 (1 point). Prove the following theorem by rule induction: -/
 
 theorem TCV1_pets {α : Type} (R : α → α → Prop) (c : α) :
-  ∀a b, TCV1 R a b → R b c → TCV1 R a c :=
-  sorry
+  ∀a b, TCV1 R a b → R b c → TCV1 R a c := by
+  intro a b hab hbc
+  induction hab with
+  | base a' b' hab => 
+    apply TCV1.step a' b' c
+    . exact hab
+    . exact TCV1.base b' c hbc
+  | step a' b' c' hab _ ih =>
+    have htbc : TCV1 R b' c := ih hbc
+    apply TCV1.step a' b' c
+    . exact hab
+    . exact htbc
 
 end LoVe
